@@ -1,10 +1,14 @@
 use csv;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use sqlparser::ast::{Query, Select, SetExpr, Statement};
+use sqlparser::dialect::GenericDialect;
+use sqlparser::parser::Parser;
 use std::{
     fs,
     io::{self, Write},
 };
+
 static PAGE_SIZE: i32 = 4096;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -92,7 +96,110 @@ impl Table {
         }
         Ok(())
     }
-    // pub fn read_row()
+    pub fn query(&self, sql: String) -> Result<Vec<ColumnValue>, SelectRowError> {
+        let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
+
+        let statements = Parser::parse_sql(&dialect, &sql).unwrap();
+        let first = statements.first().unwrap();
+        // match select statement
+        let mut columns = Vec::new();
+
+        match first {
+            Statement::Query(query) => match *query.body.clone() {
+                SetExpr::Select(select) => {
+                    for i in 0..select.projection.len() {
+                        let column = select.projection.get(i).unwrap();
+                        match column {
+                            sqlparser::ast::SelectItem::UnnamedExpr(expr) => {
+                                columns.push(expr.to_string());
+                            }
+                            // sqlparser::ast::SelectItem::Wildcard(expr) => {
+                            //     let name = String::from("*");
+                            //     let column = Column {
+                            //         name,
+                            //         _type: ColumnType::Int,
+                            //     };
+                            //     columns.push(column);
+                            // }
+                            // sqlparser::ast::SelectItem::ExprWithAlias { expr, alias } => {
+                            //     let name = alias.value.clone();
+                            //     let column = Column {
+                            //         name,
+                            //         _type: ColumnType::Int,
+                            //     };
+                            //     columns.push(column);
+                            // }
+                            _ => {}
+                        }
+                    }
+                }
+                _ => panic!("no"),
+            },
+            _ => panic!("Err(SelectRowError::UnkownOperation)"),
+        };
+        if columns.len() > self.columns.len() {
+            return Err(SelectRowError::UnknownColumn);
+        }
+        let known_columns: Vec<_> = columns
+            .iter()
+            .filter(|c| {
+                let column = self.columns.iter().find(|col| col.name == **c);
+                match column {
+                    Some(_) => true,
+                    None => false,
+                }
+            })
+            .collect();
+        if known_columns.len() != columns.len() {
+            return Err(SelectRowError::UnknownColumn);
+        }
+        println!("known_columns = {:?}", known_columns);
+        // indexes of selected table columns
+        let column_indexes: Vec<usize> = known_columns
+            .iter()
+            .map(|c| {
+                let column = self.columns.iter().position(|col| col.name == **c).unwrap();
+                column
+            })
+            .collect();
+        let mut results: Vec<u8> = Vec::new();
+        let pages = fs::read_dir(&self.name)
+            .unwrap()
+            .map(|entry| entry.unwrap())
+            .filter(|entry| entry.file_name().to_str().unwrap().contains("page_"))
+            .collect::<Vec<_>>();
+        for (index, page) in pages.iter().enumerate() {
+            let mut page_content = Page::read(&self, index as i64).unwrap();
+            results.append(&mut page_content);
+        }
+        let data = match std::str::from_utf8(&results) {
+            Ok(s) => s.to_owned(),
+            Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+        };
+        let mut csv_reader = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .from_reader(data.as_bytes());
+        // let mut results = Vec::new();
+        let mut rows = Vec::new();
+        for result in csv_reader.records() {
+            // let mut seslected_columns = Vec::new();
+            let record: csv::StringRecord = result.unwrap();
+            for index in column_indexes.iter() {
+                let column = &self.columns[*index];
+                match column._type {
+                    ColumnType::Int => {
+                        let column = record.get(*index).unwrap().parse::<i64>().unwrap();
+                        rows.push(ColumnValue::Int(column));
+                    }
+                    ColumnType::Str => {
+                        let column = record.get(*index).unwrap().to_string();
+                        rows.push(ColumnValue::Str(column));
+                    }
+                }
+            }
+        }
+        Ok(rows)
+    }
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Column {
@@ -104,6 +211,14 @@ pub struct Column {
 pub enum InsertRowError {
     IOError(io::Error),
     InsertedValuesDoNotMatchNumberOfTableColumns,
+}
+
+#[derive(Debug)]
+pub enum SelectRowError {
+    IOError(io::Error),
+    SyntaxError,
+    UnknownColumn,
+    UnkownOperation,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
