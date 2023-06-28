@@ -4,6 +4,7 @@ use std::io;
 pub enum InsertRowError {
     IOError(io::Error),
     InsertedValuesDoNotMatchNumberOfTableColumns,
+    UnmatchingType,
 }
 
 #[derive(Debug)]
@@ -20,4 +21,6 @@ pub enum QueryError {
     SyntaxError,
     UnknownColumn,
     UnkownOperation,
+    InsertMustSpecifyAllColumns,
+    InsertRowError(InsertRowError),
 }
