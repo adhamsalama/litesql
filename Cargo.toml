@@ -1,7 +1,10 @@
 [package]
-name = "sqldb"
+name = "litesql"
 version = "0.1.0"
 edition = "2021"
+description = "An attempt to write a relational database in Rust."
+license = "MIT"
+repository = "https://github.com/adhamsalama/litesql"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
