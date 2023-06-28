@@ -96,66 +96,9 @@ impl Table {
         }
         Ok(())
     }
-    pub fn query(&self, sql: String) -> Result<Vec<ColumnValue>, SelectRowError> {
-        let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
-
-        let statements = Parser::parse_sql(&dialect, &sql).unwrap();
-        let first = statements.first().unwrap();
-        // match select statement
-        let mut columns = Vec::new();
-
-        match first {
-            Statement::Query(query) => match *query.body.clone() {
-                SetExpr::Select(select) => {
-                    for i in 0..select.projection.len() {
-                        let column = select.projection.get(i).unwrap();
-                        match column {
-                            sqlparser::ast::SelectItem::UnnamedExpr(expr) => {
-                                columns.push(expr.to_string());
-                            }
-                            // sqlparser::ast::SelectItem::Wildcard(expr) => {
-                            //     let name = String::from("*");
-                            //     let column = Column {
-                            //         name,
-                            //         _type: ColumnType::Int,
-                            //     };
-                            //     columns.push(column);
-                            // }
-                            // sqlparser::ast::SelectItem::ExprWithAlias { expr, alias } => {
-                            //     let name = alias.value.clone();
-                            //     let column = Column {
-                            //         name,
-                            //         _type: ColumnType::Int,
-                            //     };
-                            //     columns.push(column);
-                            // }
-                            _ => {}
-                        }
-                    }
-                }
-                _ => panic!("no"),
-            },
-            _ => panic!("Err(SelectRowError::UnkownOperation)"),
-        };
-        if columns.len() > self.columns.len() {
-            return Err(SelectRowError::UnknownColumn);
-        }
-        let known_columns: Vec<_> = columns
-            .iter()
-            .filter(|c| {
-                let column = self.columns.iter().find(|col| col.name == **c);
-                match column {
-                    Some(_) => true,
-                    None => false,
-                }
-            })
-            .collect();
-        if known_columns.len() != columns.len() {
-            return Err(SelectRowError::UnknownColumn);
-        }
-        println!("known_columns = {:?}", known_columns);
+    pub fn select(&self, columns: &Vec<&String>) -> Vec<ColumnValue> {
         // indexes of selected table columns
-        let column_indexes: Vec<usize> = known_columns
+        let column_indexes: Vec<usize> = columns
             .iter()
             .map(|c| {
                 let column = self.columns.iter().position(|col| col.name == **c).unwrap();
@@ -168,7 +111,7 @@ impl Table {
             .map(|entry| entry.unwrap())
             .filter(|entry| entry.file_name().to_str().unwrap().contains("page_"))
             .collect::<Vec<_>>();
-        for (index, page) in pages.iter().enumerate() {
+        for (index, _) in pages.iter().enumerate() {
             let mut page_content = Page::read(&self, index as i64).unwrap();
             results.append(&mut page_content);
         }
@@ -198,7 +141,86 @@ impl Table {
                 }
             }
         }
-        Ok(rows)
+        rows
+    }
+    pub fn query(&self, sql: String) -> Result<Vec<ColumnValue>, SelectRowError> {
+        let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
+
+        let statements = Parser::parse_sql(&dialect, &sql).unwrap();
+        let first = statements.first().unwrap();
+        // match select statement
+        let mut selected_columns = Vec::new();
+
+        match first {
+            Statement::Query(query) => match *query.body.clone() {
+                SetExpr::Select(select) => {
+                    for i in 0..select.projection.len() {
+                        let column = select.projection.get(i).unwrap();
+                        match column {
+                            sqlparser::ast::SelectItem::UnnamedExpr(expr) => {
+                                selected_columns.push(expr.to_string());
+                                if selected_columns.len() > self.columns.len() {
+                                    return Err(SelectRowError::UnknownColumn);
+                                }
+                                let known_columns: Vec<_> = selected_columns
+                                    .iter()
+                                    .filter(|c| {
+                                        let column =
+                                            self.columns.iter().find(|col| col.name == **c);
+                                        match column {
+                                            Some(_) => true,
+                                            None => false,
+                                        }
+                                    })
+                                    .collect();
+                                if known_columns.len() != selected_columns.len() {
+                                    return Err(SelectRowError::UnknownColumn);
+                                }
+                                println!("known_columns = {:?}", known_columns);
+                                let r = self.select(&known_columns);
+                                return Ok(r);
+                            }
+                            // sqlparser::ast::SelectItem::Wildcard(expr) => {
+                            //     let name = String::from("*");
+                            //     let column = Column {
+                            //         name,
+                            //         _type: ColumnType::Int,
+                            //     };
+                            //     columns.push(column);
+                            // }
+                            // sqlparser::ast::SelectItem::ExprWithAlias { expr, alias } => {
+                            //     let name = alias.value.clone();
+                            //     let column = Column {
+                            //         name,
+                            //         _type: ColumnType::Int,
+                            //     };
+                            //     columns.push(column);
+                            // }
+                            _ => todo!("not implemented"),
+                        }
+                    }
+                }
+                _ => panic!("no"),
+            },
+            Statement::Insert {
+                or,
+                into,
+                table_name,
+                columns,
+                overwrite,
+                source,
+                partitioned,
+                after_columns,
+                table,
+                on,
+                returning,
+            } => {
+                println!("table {}", table_name);
+                todo!("insert")
+            }
+            _ => panic!("Err(SelectRowError::UnkownOperation)"),
+        };
+        Ok(Vec::new())
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
