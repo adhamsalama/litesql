@@ -1,3 +1,4 @@
+use crate::internal::{errors, page::Page};
 use csv;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -6,7 +7,7 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 use std::{
     fs,
-    io::{self, Write},
+    io::{self},
 };
 
 static PAGE_SIZE: i32 = 4096;
@@ -28,15 +29,15 @@ impl Table {
         let metadata: Table = serde_json::from_str(&metadata).unwrap();
         metadata
     }
-    pub fn create(&self) -> Result<(), io::Error> {
+    pub fn save(&self) -> Result<(), io::Error> {
         fs::create_dir(&self.name)?;
         let serialized = serde_json::to_string(&self).unwrap();
         fs::write(format!("{}/table.json", &self.name), serialized)?;
         Ok(())
     }
-    pub fn insert_row(&self, row: Vec<ColumnValue>) -> Result<(), InsertRowError> {
+    pub fn insert_row(&self, row: Vec<ColumnValue>) -> Result<(), errors::InsertRowError> {
         if &row.len() != &self.columns.len() {
-            return Err(InsertRowError::InsertedValuesDoNotMatchNumberOfTableColumns);
+            return Err(errors::InsertRowError::InsertedValuesDoNotMatchNumberOfTableColumns);
         }
         let mut row_size = 0;
         for i in 0..self.columns.len() {
@@ -143,7 +144,7 @@ impl Table {
         }
         rows
     }
-    pub fn query(&self, sql: String) -> Result<Vec<ColumnValue>, SelectRowError> {
+    pub fn query(&self, sql: String) -> Result<Vec<ColumnValue>, errors::SelectRowError> {
         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
         let statements = Parser::parse_sql(&dialect, &sql).unwrap();
@@ -160,7 +161,7 @@ impl Table {
                             sqlparser::ast::SelectItem::UnnamedExpr(expr) => {
                                 selected_columns.push(expr.to_string());
                                 if selected_columns.len() > self.columns.len() {
-                                    return Err(SelectRowError::UnknownColumn);
+                                    return Err(errors::SelectRowError::UnknownColumn);
                                 }
                                 let known_columns: Vec<_> = selected_columns
                                     .iter()
@@ -174,7 +175,7 @@ impl Table {
                                     })
                                     .collect();
                                 if known_columns.len() != selected_columns.len() {
-                                    return Err(SelectRowError::UnknownColumn);
+                                    return Err(errors::SelectRowError::UnknownColumn);
                                 }
                                 println!("known_columns = {:?}", known_columns);
                                 let r = self.select(&known_columns);
@@ -229,18 +230,8 @@ pub struct Column {
     pub _type: ColumnType,
 }
 
-#[derive(Debug)]
-pub enum InsertRowError {
-    IOError(io::Error),
-    InsertedValuesDoNotMatchNumberOfTableColumns,
-}
-
-#[derive(Debug)]
-pub enum SelectRowError {
-    IOError(io::Error),
-    SyntaxError,
-    UnknownColumn,
-    UnkownOperation,
+pub enum QueryResult {
+    Rows(Vec<ColumnValue>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -253,41 +244,4 @@ pub enum ColumnType {
 pub enum ColumnValue {
     Int(i64),
     Str(String),
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Page {
-    number: i64,
-    content: Vec<u8>,
-    // page_size: i64,
-}
-impl Page {
-    pub fn create(table: &Table) -> Result<(), io::Error> {
-        let files = fs::read_dir(&table.name)?.count();
-        println!("{files}");
-        fs::write(format!("{}/page_{}", &table.name, files - 1), "")?;
-        Ok(())
-    }
-    pub fn write(table: &Table, page_num: i64, bytes: &String) -> Result<(), io::Error> {
-        let mut file = fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(format!("{}/page_{}", &table.name, page_num))?;
-        let content = format!("{}\r\n", bytes);
-        file.write(content.as_bytes())?;
-
-        Ok(())
-    }
-    pub fn write_bytes(table: &Table, page_num: i64, bytes: &Vec<u8>) -> Result<(), io::Error> {
-        let mut file = fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(format!("{}/page_{}", &table.name, page_num))?;
-        file.write(bytes)?;
-
-        Ok(())
-    }
-    pub fn read(table: &Table, page_num: i64) -> Result<Vec<u8>, io::Error> {
-        Ok(fs::read(format!("{}/page_{}", &table.name, page_num))?)
-    }
 }

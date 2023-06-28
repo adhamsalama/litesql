@@ -1,10 +1,11 @@
-pub mod table;
+pub mod internal;
 
+use internal::page::Page;
+use internal::table::Table;
 use std::io::Error;
-use table::table::*;
 
 pub fn create_table(table: Table) -> Result<(), Error> {
-    table.create()?;
+    table.save()?;
     Page::create(&table)?;
     // Page::create(&table)?;
     Ok(())
