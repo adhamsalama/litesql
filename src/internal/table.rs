@@ -118,7 +118,7 @@ impl Table {
             Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
         };
         let mut csv_reader = csv::ReaderBuilder::new()
-            .has_headers(true)
+            .has_headers(false)
             .from_reader(data.as_bytes());
         // let mut results = Vec::new();
         let mut rows = Vec::new();
@@ -149,6 +149,7 @@ pub struct Column {
     pub _type: ColumnType,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub enum QueryResult {
     Rows(Vec<ColumnValue>),
     InsertRowSucceeded,
