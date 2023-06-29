@@ -152,6 +152,7 @@ pub struct Column {
 pub enum QueryResult {
     Rows(Vec<ColumnValue>),
     InsertRowSucceeded,
+    CreateTableSucceeded,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

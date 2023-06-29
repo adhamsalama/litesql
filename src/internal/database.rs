@@ -1,6 +1,6 @@
 use crate::internal::{
     errors,
-    table::{Column, ColumnValue, QueryResult, Table},
+    table::{Column, ColumnType, ColumnValue, QueryResult, Table},
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -34,7 +34,7 @@ impl Database {
         let metadata: Database = serde_json::from_str(&metadata).unwrap();
         metadata
     }
-    pub fn query(&self, sql: String) -> Result<QueryResult, errors::QueryError> {
+    pub fn query(&mut self, sql: String) -> Result<QueryResult, errors::QueryError> {
         let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
 
         let statements = Parser::parse_sql(&dialect, &sql).unwrap();
@@ -181,6 +181,41 @@ impl Database {
                     }
                     _ => panic!("Shouldn't reach here"),
                 }
+            }
+            Statement::CreateTable {
+                name,
+                columns,
+                constraints,
+                ..
+            } => {
+                let table_name = name.to_string();
+                // let mut columns: Vec<Column> = Vec::new();
+                println!("columns, {:?}", columns);
+                println!("constraints, {:?}", constraints);
+                let mut columns_to_create: Vec<Column> = Vec::new();
+                for column in columns {
+                    println!("column {}", column);
+                    let column_to_create_type = match &column.data_type {
+                        sqlparser::ast::DataType::Int(_) => ColumnType::Int,
+                        sqlparser::ast::DataType::Text => ColumnType::Str,
+                        __ => {
+                            println!("unexpected column type {:?}", __);
+                            todo!("not implemented")
+                        }
+                    };
+                    columns_to_create.push(Column {
+                        name: column.name.to_string(),
+                        _type: column_to_create_type,
+                    });
+                }
+                let table = Table {
+                    name: table_name,
+                    columns: columns_to_create,
+                };
+                table.save().unwrap();
+                self.tables.push(table);
+                self.save();
+                return Ok(QueryResult::CreateTableSucceeded);
             }
             _ => panic!("Err(SelectRowError::UnkownOperation)"),
         };
