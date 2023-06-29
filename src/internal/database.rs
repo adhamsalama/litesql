@@ -52,54 +52,55 @@ impl Database {
                     match table {
                         None => return Err(errors::QueryError::UnknownTable),
                         Some(table) => {
-                            for i in 0..select.projection.len() {
-                                let column = select.projection.get(i).unwrap();
-                                match column {
-                                    sqlparser::ast::SelectItem::UnnamedExpr(expr) => {
-                                        selected_columns.push(expr.to_string());
-                                        if selected_columns.len() > table.columns.len() {
-                                            return Err(errors::QueryError::UnknownColumn);
-                                        }
-                                        let known_columns: Vec<_> = selected_columns
-                                            .iter()
-                                            .filter(|c| {
-                                                let column = table
-                                                    .columns
-                                                    .iter()
-                                                    .find(|col| col.name == **c);
-                                                match column {
-                                                    Some(_) => true,
-                                                    None => false,
-                                                }
-                                            })
-                                            .collect();
-                                        if known_columns.len() != selected_columns.len() {
-                                            return Err(errors::QueryError::UnknownColumn);
-                                        }
-                                        println!("known_columns = {:?}", known_columns);
-                                        let r = table.select(&known_columns);
-                                        return Ok(QueryResult::Rows(r));
+                            for projection in select.projection {
+                                let column = projection;
+                                if let sqlparser::ast::SelectItem::UnnamedExpr(expr) = column {
+                                    selected_columns.push(expr.to_string());
+                                    if selected_columns.len() > table.columns.len() {
+                                        return Err(errors::QueryError::UnknownColumn);
                                     }
-                                    // sqlparser::ast::SelectItem::Wildcard(expr) => {
-                                    //     let name = String::from("*");
-                                    //     let column = Column {
-                                    //         name,
-                                    //         _type: ColumnType::Int,
-                                    //     };
-                                    //     columns.push(column);
-                                    // }
-                                    // sqlparser::ast::SelectItem::ExprWithAlias { expr, alias } => {
-                                    //     let name = alias.value.clone();
-                                    //     let column = Column {
-                                    //         name,
-                                    //         _type: ColumnType::Int,
-                                    //     };
-                                    //     columns.push(column);
-                                    // }
-                                    _ => todo!("not implemented"),
+                                    let known_columns: Vec<_> = selected_columns
+                                        .iter()
+                                        .filter(|c| {
+                                            let column =
+                                                table.columns.iter().find(|col| col.name == **c);
+                                            match column {
+                                                Some(_) => true,
+                                                None => false,
+                                            }
+                                        })
+                                        .collect();
+                                    // println!("known_columns = {:?}", known_columns);
+                                    // println!("selected_columns = {:?}", selected_columns);
+                                    if known_columns.len() != selected_columns.len() {
+                                        return Err(errors::QueryError::UnknownColumn);
+                                    }
+                                } else {
+                                    todo!("Not implemented!");
                                 }
+                                // match column {
+                                //     sqlparser::ast::SelectItem::UnnamedExpr(expr) => {}
+                                //     // sqlparser::ast::SelectItem::Wildcard(expr) => {
+                                //     //     let name = String::from("*");
+                                //     //     let column = Column {
+                                //     //         name,
+                                //     //         _type: ColumnType::Int,
+                                //     //     };
+                                //     //     columns.push(column);
+                                //     // }
+                                //     // sqlparser::ast::SelectItem::ExprWithAlias { expr, alias } => {
+                                //     //     let name = alias.value.clone();
+                                //     //     let column = Column {
+                                //     //         name,
+                                //     //         _type: ColumnType::Int,
+                                //     //     };
+                                //     //     columns.push(column);
+                                //     // }
+                                //     _ => todo!("not implemented"),
+                                // };
                             }
-                            return Ok(QueryResult::Rows(Vec::new()));
+                            let r = table.select(&selected_columns);
+                            return Ok(QueryResult::Rows(r));
                         }
                     };
                 }

@@ -94,7 +94,7 @@ impl Table {
         }
         Ok(())
     }
-    pub fn select(&self, columns: &Vec<&String>) -> Vec<ColumnValue> {
+    pub fn select(&self, columns: &Vec<String>) -> Vec<ColumnValue> {
         // indexes of selected table columns
         let column_indexes: Vec<usize> = columns
             .iter()
