@@ -75,6 +75,14 @@ impl Database {
                                     if known_columns.len() != selected_columns.len() {
                                         return Err(errors::QueryError::UnknownColumn);
                                     }
+                                } else if let sqlparser::ast::SelectItem::Wildcard(_) = column {
+                                    selected_columns = table
+                                        .columns
+                                        .iter()
+                                        .map(|c| {
+                                            return c.name.clone();
+                                        })
+                                        .collect();
                                 } else {
                                     todo!("Not implemented!");
                                 }
