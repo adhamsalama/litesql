@@ -165,7 +165,7 @@ impl Database {
                                         }
                                     }
                                     sqlparser::ast::Value::SingleQuotedString(val) => {
-                                        inserted_row.push(ColumnValue::Str(val.to_string()));
+                                        inserted_row.push(ColumnValue::Text(val.to_string()));
                                     }
                                     _ => todo!("type"),
                                 }
@@ -198,7 +198,7 @@ impl Database {
                     println!("column {}", column);
                     let column_to_create_type = match &column.data_type {
                         sqlparser::ast::DataType::Int(_) => ColumnType::Int,
-                        sqlparser::ast::DataType::Text => ColumnType::Str,
+                        sqlparser::ast::DataType::Text => ColumnType::Text,
                         __ => {
                             println!("unexpected column type {:?}", __);
                             todo!("not implemented")
@@ -217,6 +217,31 @@ impl Database {
                 self.tables.push(table);
                 self.save();
                 return Ok(QueryResult::CreateTableSucceeded);
+            }
+            Statement::Delete {
+                tables,
+                from,
+                selection,
+                ..
+            } => {
+                println!("tables {:?}", tables);
+                println!("from {:?}", from);
+                println!("selection {:?}", selection);
+                let table_name = match &from[0].relation {
+                    sqlparser::ast::TableFactor::Table { name, .. } => name.to_string(),
+                    _ => panic!("not implemented"),
+                };
+                let table = &self.tables.iter().find(|t| t.name == table_name);
+                if let Some(table) = table {
+                    match selection {
+                        None => panic!("qweq"),
+                        Some(body) => match body {
+                            sqlparser::ast::Expr::BinaryOp { left, op, right } => {}
+                            _ => panic!("no"),
+                        },
+                    }
+                }
+                return Err(errors::QueryError::UnknownTable);
             }
             _ => panic!("Err(SelectRowError::UnkownOperation)"),
         };

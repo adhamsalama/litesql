@@ -2,10 +2,7 @@ use crate::internal::{errors, page::Page};
 use csv;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::{
-    fs,
-    io::{self},
-};
+use std::{fs, io};
 
 static PAGE_SIZE: i32 = 4096;
 
@@ -48,8 +45,8 @@ impl Table {
                         panic!("Fields don't match. Expected Int.")
                     }
                 }
-                ColumnValue::Str(value) => {
-                    if let ColumnType::Str = should_be._type {
+                ColumnValue::Text(value) => {
+                    if let ColumnType::Text = should_be._type {
                         row_size += value.capacity();
                     } else {
                         panic!("Fields don't match. Expected Str.")
@@ -132,9 +129,9 @@ impl Table {
                         let column = record.get(*index).unwrap().parse::<i64>().unwrap();
                         rows.push(ColumnValue::Int(column));
                     }
-                    ColumnType::Str => {
+                    ColumnType::Text => {
                         let column = record.get(*index).unwrap().to_string();
-                        rows.push(ColumnValue::Str(column));
+                        rows.push(ColumnValue::Text(column));
                     }
                 }
             }
@@ -159,12 +156,12 @@ pub enum QueryResult {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ColumnType {
     Int,
-    Str,
+    Text,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ColumnValue {
     Int(i64),
     // Float(f64),
-    Str(String),
+    Text(String),
 }
