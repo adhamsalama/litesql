@@ -244,7 +244,9 @@ impl Database {
                     match selection {
                         None => panic!("qweq"),
                         Some(body) => match body {
-                            sqlparser::ast::Expr::BinaryOp { left, op, right } => {}
+                            sqlparser::ast::Expr::BinaryOp { left, op, right } => {
+                                todo!("not implemented");
+                            }
                             _ => panic!("no"),
                         },
                     }
